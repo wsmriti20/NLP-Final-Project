@@ -1,5 +1,6 @@
 # NLP-Final-Project
 Final group project for NLP (CIS 411)
 
-Authors: 
+Authors:
 1. Smriti Wadhwa
+2. Michael Lilley
