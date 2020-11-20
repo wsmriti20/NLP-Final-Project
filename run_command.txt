@@ -1,0 +1,2 @@
+cd Documents/411_Project/NLP-Final-Project
+python source.py ../snli_1.0/snli_1.0_train.jsonl ../snli_1.0/snli_1.0_dev.jsonl ../snli_1.0/snli_1.0_test.jsonl
