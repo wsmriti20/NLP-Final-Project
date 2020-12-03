@@ -189,12 +189,46 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                 synonymns_dictionary[word] = synonymns
         return synonymns_dictionary
 
+    def get_unigrams(self, sentence):
+        return setence.split(' ')
+
+    def get_bigrams(self, sentence):
+        return list(nltk.bigrams(sentence.split(' ')))
+
+    def unigram_cross_count(self, unigrams1, unigrams2):
+        count = 0
+        for uni1 in unigram1:
+            for uni2 in unigram2:
+                if uni1 == uni2:
+                    count += 1
+        return count
+
+    def bigram_cross_count(self, bigrams1, bigrams2):
+        count = 0
+        for bi1 in bigram1:
+            for bi2 in bigram2:
+                if bi1[0] == bi2[0] and bi1[1] == bi2[1]:
+                    count += 1
+        return count
+
+    def ascii_diff(self,sentence1, sentence2):
+        diff = 0
+        words = sentence1.split(' ')
+        for word in words:
+            for c in word:
+                diff += ord(c)
+        words = sentence2.split(' ')
+        for word in words:
+            for c in word:
+                diff -= ord(c)
+        return diff
+
     def read_data(self, index):
         with open(self.data_set[index], 'r') as data_file:                      # Read Training Data
             i = 0
             for line in data_file:
                 if (i < 1000000):                                               # Line Limiter
-                    feature_vector = [None] * 13                                  # Create Feature Vector
+                    feature_vector = [None] * 20                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
                     feature_vector[1] = data_line["sentence1"]  # Extract Premise Sentence
@@ -213,6 +247,19 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
                     feature_vector[11] = self.find_synonyms(feature_vector[2])
                     feature_vector[12] = self.find_antonyms(feature_vector[2])
+
+                    # sentence 1 unigrams and bigrams
+                    feature_vector[13] = self.get_unigrams(feature_vector[1])
+                    feature_vector[14] = self.get_bigrams(feature_vector[1])
+
+                    # sentence 2 unigrams and bigrams
+                    feature_vector[15] = self.get_unigrams(feature_vector[2])
+                    feature_vector[16] = self.get_bigrams(feature_vector[2])
+
+                    # unigram cross count, bigram cross count, and acsii sum difference
+                    feature_vector[17] = self.unigram_cross_count(feature_vector[13], feature_vector[15])
+                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
+                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
 
                     # if (feature_vector[3] != -1 or feature_vector[4] != -1 or feature_vector[5] != -1 or feature_vector[6] != -1):
                     #    self.data_frame[index].append(pd.Series(feature_vector), ignore_index=True)
