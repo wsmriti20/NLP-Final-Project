@@ -5,16 +5,16 @@ import sys
 import json
 import string
 from nltk.corpus import wordnet, stopwords
-# from nltk.corpus import stopwords
+#from nltk.corpus import stopwords
 stop_words = set(stopwords.words('english'))
-
+#stop_words = []
 
 class Node:
     def __init__(self, id, parent, pos_tag, phrase):
-        self.id = "-1"
+        self.id = id
         self.parent = parent
         self.pos_tag = pos_tag
-        self.phrase = ""
+        self.phrase = phrase
         self.children = {}
 
 
@@ -81,6 +81,8 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                                                  "premise_length", "hypothesis_length", "synonyms_sent1",
                                                  "antonyms_sent1", "synonyms_sent2", "antonyms_sent2"])] * 3
 
+        self.stored_data = []
+
     def extract_parse_tree(self, sentence, mode):
         tree_level = 0
         parse_tree = None
@@ -113,8 +115,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     parse_tree.node_locator[current_node].phrase = clean_phrase
 
                     if (mode == 1):  # POS Tag Cleaning Routine
-                        parse_tree.node_locator[current_node].pos_tag = \
-                        parse_tree.node_locator[current_node].pos_tag.split()[0]
+                        parse_tree.node_locator[current_node].pos_tag = parse_tree.node_locator[current_node].pos_tag.split()[0]
 
                     tree_level -= 1
                     current_node = parse_tree.get_parent(current_node)
@@ -141,6 +142,85 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                 break
 
         return parse_tree
+
+    def modify_dependency_tree(self, tree, pos_list):
+        #Extend Phrase into child node
+        new_tree = tree
+        main_node_list = list(new_tree.node_locator)
+        main_node_list.sort(reverse=True)
+        for node in main_node_list:
+            if(not new_tree.node_locator[node].children):
+                if (len(new_tree.node_locator[node].phrase.split()) == 2):
+                    parent_id = int(new_tree.node_locator[node].id)
+
+                    #increment nodes
+                    node_list = list(new_tree.node_locator)
+                    node_list.sort(reverse=True)
+                    for node_index in node_list:
+                        if (new_tree.node_locator[node_index].children):
+                            child_list = list(new_tree.node_locator[node_index].children)
+                            child_list.sort(reverse=True)
+                            for child_node in child_list:
+                                if (child_node > parent_id):
+                                    new_tree.node_locator[node_index].children.pop(child_node)
+                                    new_tree.node_locator[node_index].children[child_node + 1] = 1
+
+                        if (node_index > parent_id):
+                            new_tree.node_locator[node_index + 1] = Node(node_index + 1, new_tree.node_locator[node_index].parent, "", new_tree.node_locator[node_index].phrase)
+
+                            for temp_child in new_tree.node_locator[node_index].children:
+                                new_tree.node_locator[node_index + 1].children[temp_child] = 1
+
+                            new_tree.node_locator.pop(node_index)
+
+                    new_tree.node_locator[parent_id].children[parent_id + 1] = 1
+                    new_tree.node_locator[parent_id + 1] = Node(str(parent_id + 1), parent_id, "", new_tree.node_locator[node].phrase.split()[1])
+                    new_tree.node_locator[node].phrase = new_tree.node_locator[node].phrase.split()[0]
+
+        new_tree.print_tree()
+
+        #Get POS tags from grammar tree
+        i = 0
+        j = 2
+        while(i < len(pos_list)):
+            if(new_tree.node_locator[j].phrase != "" and new_tree.node_locator[j].phrase != "."):
+                print(pos_list)
+                print("i: " + str(i) + " | j: " + str(j))
+                new_tree.node_locator[j].pos_tag = pos_list[i]
+                i += 1
+            j += 1
+
+        new_tree.print_tree()
+
+        #Remove Determiners from Tree
+        total_removed = 0
+        new_list = list(new_tree.node_locator)
+        new_list.sort()
+        for node in new_list:
+            if (node in new_tree.node_locator):
+                if(new_tree.node_locator[node].pos_tag == "DT"):
+                    print(node)
+                    new_tree.node_locator.pop(node)
+                    total_removed += 1
+
+                    node_list = list(new_tree.node_locator)
+                    node_list.sort()
+                    for node_index2 in node_list:
+                        if(node_index2 > node):
+                            new_tree.node_locator[node_index2 - 1] = new_tree.node_locator[node_index2]
+
+                    new_tree.node_locator.pop(len(new_tree.node_locator))
+
+        return new_tree
+
+    def depth_first_search_pos(self, tree):
+        pos_tags = []
+        for node in tree.node_locator:
+            if(not tree.node_locator[node].children and tree.node_locator[node].pos_tag != "."):
+                pos_tags.append(tree.node_locator[node].pos_tag)
+
+        return pos_tags
+
 
     def finding_pos(self, lemmaWord):
         split_word = str(lemmaWord).split(".")
@@ -190,7 +270,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         return synonymns_dictionary
 
     def get_unigrams(self, sentence):
-        return setence.split(' ')
+        return sentence.split(' ')
 
     def get_bigrams(self, sentence):
         return list(nltk.bigrams(sentence.split(' ')))
@@ -224,6 +304,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         return diff
 
     def read_data(self, index):
+        bad_nodes = 0
         with open(self.data_set[index], 'r') as data_file:                      # Read Training Data
             i = 0
             for line in data_file:
@@ -239,42 +320,48 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     feature_vector[6] = self.extract_parse_tree(data_line["sentence2_parse"], 1)
                     feature_vector[7] = len(data_line["sentence1"].split())
                     feature_vector[8] = len(data_line["sentence2"].split())
+
+                    if(len(feature_vector[3].node_locator[1].phrase.split()) == 1 and len(feature_vector[4].node_locator[1].phrase.split()) == 1):
+                        self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5]))
+                        self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6]))
+
+                    else:
+                        bad_nodes += 1
+
+
                     # synonyms and antonyms of the sentence 1
-                    feature_vector[9] = self.find_synonyms(feature_vector[1])
-                    feature_vector[10] = self.find_antonyms(feature_vector[1])
+#                    feature_vector[9] = self.find_synonyms(feature_vector[1])
+#                    feature_vector[10] = self.find_antonyms(feature_vector[1])
 
                     # synonyms and antonyms for the second sentence
 
-                    feature_vector[11] = self.find_synonyms(feature_vector[2])
-                    feature_vector[12] = self.find_antonyms(feature_vector[2])
+#                    feature_vector[11] = self.find_synonyms(feature_vector[2])
+#                    feature_vector[12] = self.find_antonyms(feature_vector[2])
 
                     # sentence 1 unigrams and bigrams
-                    feature_vector[13] = self.get_unigrams(feature_vector[1])
-                    feature_vector[14] = self.get_bigrams(feature_vector[1])
+#                    feature_vector[13] = self.get_unigrams(feature_vector[1])
+#                    feature_vector[14] = self.get_bigrams(feature_vector[1])
 
                     # sentence 2 unigrams and bigrams
-                    feature_vector[15] = self.get_unigrams(feature_vector[2])
-                    feature_vector[16] = self.get_bigrams(feature_vector[2])
+#                    feature_vector[15] = self.get_unigrams(feature_vector[2])
+#                    feature_vector[16] = self.get_bigrams(feature_vector[2])
 
                     # unigram cross count, bigram cross count, and acsii sum difference
-                    feature_vector[17] = self.unigram_cross_count(feature_vector[13], feature_vector[15])
-                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
-                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
+#                    feature_vector[17] = self.unigram_cross_count(feature_vector[13], feature_vector[15])
+#                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
+#                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
 
-                    # if (feature_vector[3] != -1 or feature_vector[4] != -1 or feature_vector[5] != -1 or feature_vector[6] != -1):
-                    #    self.data_frame[index].append(pd.Series(feature_vector), ignore_index=True)
-
-                    if (feature_vector[3] != -1 or feature_vector[4] != -1 or feature_vector[5] != -1 or feature_vector[
-                        6] != -1):
-                        self.data_frame[index].loc[i, self.data_frame[index].columns] = feature_vector
-
-                    # if(i == 90):
-                    #    print(feature_vector[1])
-                    #    print(self.data_frame[index].loc[90, self.data_frame[index].columns])
-                    #    break
+                    if(i == 10000):
+                        #feature_vector[3].print_tree()
+                        #print("--------------------------------------------------------------------------------------------")
+                        #self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
+                        #self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6])).print_tree()
+                        print("bad_nodes: " + str(bad_nodes))
+                        return 0
 
                 i += 1  # Line Limiter Increment
-                print(i)  # Progress Indicator
+                print("Increment: " + str(i))  # Progress Indicator
+
 
 
 entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
