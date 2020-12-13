@@ -9,6 +9,12 @@ from nltk.corpus import wordnet, stopwords
 stop_words = set(stopwords.words('english'))
 #stop_words = []
 
+class Object:
+    def __init__(self, main_obj, type):
+        self.main_obj = main_obj
+        self.type = type
+        self.descriptors = []
+
 class Node:
     def __init__(self, id, parent, pos_tag, phrase):
         self.id = id
@@ -16,6 +22,7 @@ class Node:
         self.pos_tag = pos_tag
         self.phrase = phrase
         self.children = {}
+        self.visited = False
 
 
 class Tree:
@@ -177,15 +184,15 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     new_tree.node_locator[parent_id + 1] = Node(str(parent_id + 1), parent_id, "", new_tree.node_locator[node].phrase.split()[1])
                     new_tree.node_locator[node].phrase = new_tree.node_locator[node].phrase.split()[0]
 
-        new_tree.print_tree()
+        #new_tree.print_tree()
 
         #Get POS tags from grammar tree
         i = 0
         j = 2
         while(i < len(pos_list)):
             if(new_tree.node_locator[j].phrase != "" and new_tree.node_locator[j].phrase != "."):
-                print(pos_list)
-                print("i: " + str(i) + " | j: " + str(j))
+                #print(pos_list)
+                #print("i: " + str(i) + " | j: " + str(j))
                 new_tree.node_locator[j].pos_tag = pos_list[i]
                 i += 1
             j += 1
@@ -206,6 +213,12 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     node_list = list(new_tree.node_locator)
                     node_list.sort()
                     for node_index2 in node_list:
+                        if(new_tree.node_locator[node_index2].children):
+                            for child_node in list(new_tree.node_locator[node_index2].children):
+                                if(child_node > node):
+                                    new_tree.node_locator[node_index2].children.pop(child_node)
+                                    new_tree.node_locator[node_index2].children[child_node - 1] = 1
+
                         if(node_index2 > node):
                             new_tree.node_locator[node_index2 - 1] = new_tree.node_locator[node_index2]
 
@@ -213,10 +226,29 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
         return new_tree
 
+    def grab_objects(self, tree):
+        objects = []
+        main_tags = {"NN": 1, "NNS": 1, "NNP": 1, "NNPS": 1, "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
+        descriptor_tags = {"JJ" : 1, "JJR": 1, "JJS": 1, "RB": 1, "RBR": 1, "RBS": 1}
+        for node in tree.node_locator:
+            if (not tree.node_locator[node].children):
+                if(tree.node_locator[node].pos_tag in main_tags):
+                    new_object = Object(tree.node_locator[node].phrase, tree.node_locator[node].pos_tag)
+
+                    tree.node_locator[node].visited = True
+                    for sibling in tree.node_locator[tree.node_locator[node].parent].children:
+                        if(tree.node_locator[sibling].pos_tag in descriptor_tags and tree.node_locator[sibling].visited == False):
+                            new_object.descriptors.append(tree.node_locator[sibling].phrase)
+                            tree.node_locator[sibling].visited = True
+
+                    objects.append(new_object)
+
+        return objects
+
     def depth_first_search_pos(self, tree):
         pos_tags = []
         for node in tree.node_locator:
-            if(not tree.node_locator[node].children and tree.node_locator[node].pos_tag != "."):
+            if(not tree.node_locator[node].children and tree.node_locator[node].pos_tag not in string.punctuation):
                 pos_tags.append(tree.node_locator[node].pos_tag)
 
         return pos_tags
@@ -321,12 +353,30 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     feature_vector[7] = len(data_line["sentence1"].split())
                     feature_vector[8] = len(data_line["sentence2"].split())
 
-                    if(len(feature_vector[3].node_locator[1].phrase.split()) == 1 and len(feature_vector[4].node_locator[1].phrase.split()) == 1):
-                        self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5]))
-                        self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6]))
+                    verb_tags = {"VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
 
-                    else:
-                        bad_nodes += 1
+                    #feature_vector[5].print_tree()
+                    for object in self.grab_objects(feature_vector[5]):
+                        if (object.type in verb_tags and len(object.descriptors) > 0):
+                            print("Main Object: " + object.main_obj)
+                            print("POS Tag: " + object.type)
+                            print("Descriptors: ")
+                            print(object.descriptors)
+                            print("\n")
+                    #return 0
+
+                    #if(len(feature_vector[3].node_locator[1].phrase.split()) == 1 and len(feature_vector[4].node_locator[1].phrase.split()) == 1):
+                    #    self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
+                    #    self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6])).print_tree()
+
+                    #else:
+                        #feature_vector[3].print_tree()
+                    #    bad_nodes += 1
+
+                    #if(i == 6):
+                        #self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
+                    #    return 0
+
 
 
                     # synonyms and antonyms of the sentence 1
