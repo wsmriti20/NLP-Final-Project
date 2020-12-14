@@ -374,8 +374,8 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                                 x = ds1.wup_similarity(ds2) if ds1.wup_similarity(ds2) else 0
                                 descriptor_score_list.append(x)
                         similarity_score += max(descriptor_score_list)
-            
-            similarity_score += max(noun_score_list)
+            if noun_score_list:
+                similarity_score += max(noun_score_list)
 
         
         # adding similarity scores for the verbs if any
@@ -387,7 +387,8 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                 if vs1 and vs2:
                     x = vs1.wup_similarity(vs2) if vs1.wup_similarity(vs2) else 0
                     verbs_score_list.append(x)
-            similarity_score += max(verbs_score_list)
+            if verbs_score_list:
+                similarity_score += max(verbs_score_list)
 
         return similarity_score
 
@@ -492,7 +493,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         with open(self.data_set[index], 'r') as data_file:                      # Read Training Data
             i = 0
             for line in data_file:
-                if (i < 10):                                               # Line Limiter
+                if (i < 10000):                                               # Line Limiter
                     feature_vector = [None] * 20                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
@@ -512,14 +513,9 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     feature_vector[10] = self.calculate_antonymy_score(feature_vector[5], feature_vector[6])
                     
                     feature_vector[11] = self.calculate_synonymity_score(feature_vector[5], feature_vector[6])
-                    print(feature_vector[11])
-                    # synonyms and antonyms of the sentence 1
-#                    feature_vector[9] = self.find_synonyms(feature_vector[1])
+                    
+                    print(feature_vector[10],feature_vector[11], feature_vector[9])
 
-                    # synonyms and antonyms for the second sentence
-
-#                    feature_vector[11] = self.find_synonyms(feature_vector[2])
-#                    feature_vector[12] = self.find_antonyms(feature_vector[2])
 
                     # sentence 1 unigrams and bigrams
 #                    feature_vector[13] = self.get_unigrams(feature_vector[1])
@@ -534,7 +530,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 #                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
 #                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
 
-                    if(i == 10):
+                    if(i == 10000):
                         print("bad_nodes: " + str(bad_nodes))
                         return 0
 
