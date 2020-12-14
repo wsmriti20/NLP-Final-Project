@@ -5,7 +5,14 @@ import sys
 import json
 import string
 from nltk.corpus import wordnet, stopwords
-from nltk.corpus import stopwords
+# from nltk.corpus import stopwords
+from pandas import DataFrame
+import sklearn
+from sklearn.tree import DecisionTreeClassifier 
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score
+
+
 stop_words = set(stopwords.words('english'))
 stop_words = []
 
@@ -295,16 +302,16 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
     def unigram_cross_count(self, unigrams1, unigrams2):
         count = 0
-        for uni1 in unigram1:
-            for uni2 in unigram2:
+        for uni1 in unigrams1:
+            for uni2 in unigrams2:
                 if uni1 == uni2:
                     count += 1
         return count
 
     def bigram_cross_count(self, bigrams1, bigrams2):
         count = 0
-        for bi1 in bigram1:
-            for bi2 in bigram2:
+        for bi1 in bigrams1:
+            for bi2 in bigrams2:
                 if bi1[0] == bi2[0] and bi1[1] == bi2[1]:
                     count += 1
         return count
@@ -492,9 +499,11 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         bad_nodes = 0
         with open(self.data_set[index], 'r') as data_file:                      # Read Training Data
             i = 0
+            actual_features_list_of_lists = []
             for line in data_file:
+                row_line = []
                 if (i < 10000):                                               # Line Limiter
-                    feature_vector = [None] * 20                                  # Create Feature Vector
+                    feature_vector = [None] * 19                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
                     feature_vector[1] = data_line["sentence1"]  # Extract Premise Sentence
@@ -505,40 +514,71 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     feature_vector[6] = self.extract_parse_tree(data_line["sentence2_parse"], 1)
                     feature_vector[7] = len(data_line["sentence1"].split())
                     feature_vector[8] = len(data_line["sentence2"].split())
-
-                    # verb_tags = {"VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
-                    feature_vector[9] = self.calculate_similarity_code(feature_vector[5], feature_vector[6])
-                    # print(feature_vector[9])
-#                   
-                    feature_vector[10] = self.calculate_antonymy_score(feature_vector[5], feature_vector[6])
                     
-                    feature_vector[11] = self.calculate_synonymity_score(feature_vector[5], feature_vector[6])
-                    
-                    print(feature_vector[10],feature_vector[11], feature_vector[9])
 
+                    # feature_vector[9] = self.calculate_similarity_code(feature_vector[5], feature_vector[6])                   
+                    # feature_vector[10] = self.calculate_antonymy_score(feature_vector[5], feature_vector[6])
+                    # feature_vector[11] = self.calculate_synonymity_score(feature_vector[5], feature_vector[6])
+                    
+                    row_line.append(data_line["gold_label"])  # Extract Gold Label
+                    row_line.append(len(data_line["sentence1"].split()))
+                    row_line.append(len(data_line["sentence2"].split()))
+                    row_line.append(self.calculate_similarity_code(feature_vector[5], feature_vector[6]))                
+                    row_line.append(self.calculate_antonymy_score(feature_vector[5], feature_vector[6]))
+                    row_line.append(self.calculate_synonymity_score(feature_vector[5], feature_vector[6]))
+                    
+                    # print(feature_vector[10],feature_vector[11], feature_vector[9])
 
                     # sentence 1 unigrams and bigrams
-#                    feature_vector[13] = self.get_unigrams(feature_vector[1])
-#                    feature_vector[14] = self.get_bigrams(feature_vector[1])
+                    feature_vector[13] = self.get_unigrams(feature_vector[1])
+                    feature_vector[14] = self.get_bigrams(feature_vector[1])
 
-                    # sentence 2 unigrams and bigrams
-#                    feature_vector[15] = self.get_unigrams(feature_vector[2])
-#                    feature_vector[16] = self.get_bigrams(feature_vector[2])
+                        # sentence 2 unigrams and bigrams
+                    feature_vector[15] = self.get_unigrams(feature_vector[2])
+                    feature_vector[16] = self.get_bigrams(feature_vector[2])
 
-                    # unigram cross count, bigram cross count, and acsii sum difference
-#                    feature_vector[17] = self.unigram_cross_count(feature_vector[13], feature_vector[15])
-#                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
-#                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
-
+                        # unigram cross count, bigram cross count, and acsii sum difference
+                    row_line.append(self.unigram_cross_count(feature_vector[13], feature_vector[15]))
+                    row_line.append(self.bigram_cross_count(feature_vector[14], feature_vector[16]))
+                    row_line.append(self.ascii_diff(feature_vector[1], feature_vector[2]))
+                        # print(row_line)
+                    
+                    actual_features_list_of_lists.append(row_line)
+                    
                     if(i == 10000):
-                        print("bad_nodes: " + str(bad_nodes))
+                        # print("bad_nodes: " + str(bad_nodes))
+                        actual_features_list_of_lists.append(row_line)
                         return 0
 
                 i += 1  # Line Limiter Increment
-                # print("Increment: " + str(i))  # Progress Indicator
+        return actual_features_list_of_lists
 
 
 
 # entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
 entailment_system_instance = Entailment_System("snli_1.0_train.jsonl", "snli_1.0_dev.jsonl", "snli_1.0_test.jsonl")
-entailment_system_instance.read_data(0)
+dft = entailment_system_instance.read_data(0)
+x_train =  DataFrame(dft, \
+    columns=["Labels", "Len of Sent1", "Len of Sent2", \
+        "Similarity Score", "Antonym Score", "Synonym Score", \
+        "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff"])
+
+
+y_train = x_train.Labels
+x_train = x_train.drop(["Labels"], axis = 1)
+
+# print(y_train)
+x_test =  DataFrame(entailment_system_instance.read_data(2), \
+    columns=["Labels", "Len of Sent1", "Len of Sent2", \
+            "Similarity Score", "Antonym Score", "Synonym Score", \
+            "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff"])
+y_test = x_test.Labels
+x_test = x_test.drop(["Labels"], axis = 1)
+
+# print("\n\n", y_test)
+
+Clf = DecisionTreeClassifier(criterion = "entropy")
+Clf = Clf.fit(x_train, y_train)
+y_pred = Clf.predict(x_test)
+
+print(accuracy_score(y_test, y_pred)*100)
