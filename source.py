@@ -502,7 +502,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
             actual_features_list_of_lists = []
             for line in data_file:
                 row_line = []
-                if (i < 10000):                                               # Line Limiter
+                if (i < 150000):                                               # Line Limiter
                     feature_vector = [None] * 19                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
@@ -545,7 +545,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     
                     actual_features_list_of_lists.append(row_line)
                     
-                    if(i == 10000):
+                    if(i == 150000):
                         # print("bad_nodes: " + str(bad_nodes))
                         actual_features_list_of_lists.append(row_line)
                         return 0
