@@ -5,9 +5,9 @@ import sys
 import json
 import string
 from nltk.corpus import wordnet, stopwords
-#from nltk.corpus import stopwords
+from nltk.corpus import stopwords
 stop_words = set(stopwords.words('english'))
-#stop_words = []
+stop_words = []
 
 class Object:
     def __init__(self, main_obj, type):
@@ -228,7 +228,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
     def grab_objects(self, tree):
         objects = []
-        main_tags = {"NN": 1, "NNS": 1, "NNP": 1, "NNPS": 1, "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
+        main_tags = {"NN": 1, "NNS": 1, "NNP": 1, "NNPS": 1, "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1, "PRP" : 1, "PRP$": 1}
         descriptor_tags = {"JJ" : 1, "JJR": 1, "JJS": 1, "RB": 1, "RBR": 1, "RBS": 1}
         for node in tree.node_locator:
             if (not tree.node_locator[node].children):
@@ -335,12 +335,82 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                 diff -= ord(c)
         return diff
 
+    def calculate_similarity_code(self, line1, line2):
+        # object_list_sent1 = self.grab_objects(line1)
+        # object_list_sent2 = self.grab_objects(line2)
+        noun_sent1_list = []
+        noun_sent2_list = []
+        verb_sent1_list = []
+        verb_sent2_list = []
+        
+        #  "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1, 
+        for obj in self.grab_objects(line1):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent1_list.append(obj)
+
+        for obj in self.grab_objects(line2):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent2_list.append(obj)
+        
+        ## get rid of this please
+        short_noun_list = noun_sent1_list if len(noun_sent1_list) < len(noun_sent2_list) else noun_sent2_list
+        short_verb_list = verb_sent1_list if len(verb_sent1_list) < len(verb_sent2_list)  else verb_sent2_list  
+        long_noun_list = noun_sent1_list if len(noun_sent1_list) > len(noun_sent2_list) else noun_sent2_list
+        long_verb_list = verb_sent1_list if len(verb_sent1_list) > len(verb_sent2_list) else verb_sent2_list
+
+        similarity_score = 0
+        noun_score_list = []
+        # optimize the loops for the love of GOD
+        for noun1 in short_noun_list:
+            ns1 = wordnet.synsets(noun1.main_obj)[0] if wordnet.synsets(noun1.main_obj) else None
+            for noun2 in long_noun_list:
+                ns2 = wordnet.synsets(noun2.main_obj)[0] if wordnet.synsets(noun2.main_obj) else None
+                if ns2 and ns1:
+                    x = ns1.wup_similarity(ns2) if ns1.wup_similarity(ns2) else 0
+                    noun_score_list.append(ns1.wup_similarity(ns2))
+
+                # adding similarity scores for the desciptors if any 
+                descriptor_score_list = []
+                if noun1.descriptors and noun2.descriptors:
+                    for d1 in noun1.descriptors:
+                        for d2 in noun2.descriptors:
+                            ds1 = wordnet.synsets(d1)[0] if wordnet.synsets(d1) else None
+                            ds2 = wordnet.synsets(d2)[0] if wordnet.synsets(d2) else None
+                            if ds1 and ds2:
+                                x = ds1.wup_similarity(ds2) if ds1.wup_similarity(ds2) else 0
+                                descriptor_score_list.append(x)
+                        similarity_score += max(descriptor_score_list)
+            
+            similarity_score += max(noun_score_list)
+
+        # Do the same for verbs
+        verbs_score_list = []
+        for verb1 in short_verb_list:
+            for verb2 in long_verb_list:
+                vs1 = wordnet.synsets(verb1.main_obj)[0] if wordnet.synsets(verb1.main_obj) else None
+                vs2 = wordnet.synsets(verb2.main_obj)[0] if wordnet.synsets(verb2.main_obj) else None
+                if vs1 and vs2:
+                    x = vs1.wup_similarity(vs2) if vs1.wup_similarity(vs2) else 0
+                    verbs_score_list.append(x)
+            similarity_score += max(verbs_score_list)
+
+        return similarity_score
+
+
     def read_data(self, index):
         bad_nodes = 0
         with open(self.data_set[index], 'r') as data_file:                      # Read Training Data
             i = 0
             for line in data_file:
-                if (i < 1000000):                                               # Line Limiter
+                if (i < 10):                                               # Line Limiter
                     feature_vector = [None] * 20                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
@@ -353,31 +423,9 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     feature_vector[7] = len(data_line["sentence1"].split())
                     feature_vector[8] = len(data_line["sentence2"].split())
 
-                    verb_tags = {"VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
-
-                    #feature_vector[5].print_tree()
-                    for object in self.grab_objects(feature_vector[5]):
-                        if (object.type in verb_tags and len(object.descriptors) > 0):
-                            print("Main Object: " + object.main_obj)
-                            print("POS Tag: " + object.type)
-                            print("Descriptors: ")
-                            print(object.descriptors)
-                            print("\n")
-                    #return 0
-
-                    #if(len(feature_vector[3].node_locator[1].phrase.split()) == 1 and len(feature_vector[4].node_locator[1].phrase.split()) == 1):
-                    #    self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
-                    #    self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6])).print_tree()
-
-                    #else:
-                        #feature_vector[3].print_tree()
-                    #    bad_nodes += 1
-
-                    #if(i == 6):
-                        #self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
-                    #    return 0
-
-
+                    # verb_tags = {"VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
+                    feature_vector[9] = self.calculate_similarity_code(feature_vector[5], feature_vector[6])
+                    print(feature_vector[9])
 
                     # synonyms and antonyms of the sentence 1
 #                    feature_vector[9] = self.find_synonyms(feature_vector[1])
@@ -401,18 +449,15 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 #                    feature_vector[18] = self.bigram_cross_count(feature_vector[14], feature_vector[16])
 #                    feature_vector[19] = self.ascii_diff(feature_vector[1], feature_vector[2])
 
-                    if(i == 10000):
-                        #feature_vector[3].print_tree()
-                        #print("--------------------------------------------------------------------------------------------")
-                        #self.modify_dependency_tree(feature_vector[3], self.depth_first_search_pos(feature_vector[5])).print_tree()
-                        #self.modify_dependency_tree(feature_vector[4], self.depth_first_search_pos(feature_vector[6])).print_tree()
+                    if(i == 10):
                         print("bad_nodes: " + str(bad_nodes))
                         return 0
 
                 i += 1  # Line Limiter Increment
-                print("Increment: " + str(i))  # Progress Indicator
+                # print("Increment: " + str(i))  # Progress Indicator
 
 
 
-entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
+# entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
+entailment_system_instance = Entailment_System("snli_1.0_train.jsonl", "snli_1.0_dev.jsonl", "snli_1.0_test.jsonl")
 entailment_system_instance.read_data(0)
