@@ -269,37 +269,23 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         else:
             return ''
 
-    def find_antonyms(self, line):
+    def find_antonyms(self, word):
         # converts the string of sentence to a dictionary of words as keys and antonyms as their values
-        word_list = line.split(" ")
-        antonyms_dictionary = {}
-        for word in word_list:
-            antonyms = []
-            if word not in stop_words:
-                for set in wordnet.synsets(word):
-                    for set_word in set.lemmas():
-                        if set_word.antonyms():
-                            pos_tag = self.finding_pos(set_word)
-                            tuple_value = (pos_tag, set_word.name())
-                            antonyms.append(tuple_value)
-                antonyms_dictionary[word] = antonyms
-        return antonyms_dictionary
+        antonyms = []
+        if word not in stop_words:
+            for set in wordnet.synsets(word):
+                for set_word in set.lemmas():
+                    if set_word.antonyms():
+                        antonyms.append(set_word.name())
+        return antonyms
 
-    def find_synonyms(self, line):
-        # create a dictionary with the word as a key and the value a tuple of (
-        word_list = line.split(" ")
-        synonymns_dictionary = {}
-        for word in word_list:
-            # stop_words = set(stopwords.words('english'))
-            if word not in stop_words:
-                synonymns = []
-                for set in wordnet.synsets(word):
-                    for set_word in set.lemmas():
-                        pos_tag = self.finding_pos(set_word)
-                        tuple_value = (pos_tag, set_word.name())
-                        synonymns.append(tuple_value)
-                synonymns_dictionary[word] = synonymns
-        return synonymns_dictionary
+    def find_synonyms(self, word):
+        synonymns = []
+        if word not in stop_words:
+            for set in wordnet.synsets(word):
+                for set_word in set.lemmas():
+                    synonymns.append(set_word.name())
+        return synonymns
 
     def get_unigrams(self, sentence):
         return sentence.split(' ')
@@ -391,7 +377,8 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
             
             similarity_score += max(noun_score_list)
 
-        # Do the same for verbs
+        
+        # adding similarity scores for the verbs if any
         verbs_score_list = []
         for verb1 in short_verb_list:
             for verb2 in long_verb_list:
@@ -404,6 +391,101 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
         return similarity_score
 
+    def calculate_antonymy_score(self, line1, line2):
+        noun_sent1_list = []
+        noun_sent2_list = []
+        verb_sent1_list = []
+        verb_sent2_list = []
+        antonymy_score = 0
+
+        #  "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1, 
+        for obj in self.grab_objects(line1):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent1_list.append(obj)
+
+        for obj in self.grab_objects(line2):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent2_list.append(obj) 
+
+        short_noun_list = noun_sent1_list if len(noun_sent1_list) < len(noun_sent2_list) else noun_sent2_list
+        short_verb_list = verb_sent1_list if len(verb_sent1_list) < len(verb_sent2_list)  else verb_sent2_list  
+        long_noun_list = noun_sent1_list if len(noun_sent1_list) > len(noun_sent2_list) else noun_sent2_list
+        long_verb_list = verb_sent1_list if len(verb_sent1_list) > len(verb_sent2_list) else verb_sent2_list
+
+        for noun1 in long_noun_list:
+            for noun2 in short_noun_list:
+                antonyms_list = self.find_antonyms(noun2.main_obj)
+                if antonyms_list:
+                    if noun1.main_obj in antonyms_list:
+                        antonymy_score += 1
+
+                if noun1.descriptors and noun2.descriptors:
+                    for d1 in noun1.descriptors:
+                        for d2 in noun2.descriptors:
+                            if d1.main_obj in self.find_antonyms(d2.main_obj):
+                                antonymy_score += 1
+        
+        for verb1 in long_verb_list:
+            for verb2 in verb_sent2_list:
+                if verb1.main_obj in self.find_antonyms(verb2.main_obj):
+                    antonymy_score += 1
+
+        return antonymy_score
+
+    def calculate_synonymity_score(self, line1, line2):
+        noun_sent1_list = []
+        noun_sent2_list = []
+        verb_sent1_list = []
+        verb_sent2_list = []
+        synonymity_score = 0
+
+        #  "VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1, 
+        for obj in self.grab_objects(line1):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent1_list.append(obj)
+
+        for obj in self.grab_objects(line2):
+            if obj.type in ["NN", "NNS", "NNP", "NNPS", "PRP", "PRP$"]:
+                # add into the noun obj list
+                noun_sent1_list.append(obj)
+            else:
+                # for the verb obj list
+                verb_sent2_list.append(obj) 
+
+        short_noun_list = noun_sent1_list if len(noun_sent1_list) < len(noun_sent2_list) else noun_sent2_list
+        short_verb_list = verb_sent1_list if len(verb_sent1_list) < len(verb_sent2_list)  else verb_sent2_list  
+        long_noun_list = noun_sent1_list if len(noun_sent1_list) > len(noun_sent2_list) else noun_sent2_list
+        long_verb_list = verb_sent1_list if len(verb_sent1_list) > len(verb_sent2_list) else verb_sent2_list
+
+        for noun1 in long_noun_list:
+            for noun2 in short_noun_list:
+                if noun1.main_obj in self.find_synonyms(noun2.main_obj):
+                    synonymity_score += 1
+
+                if noun1.descriptors and noun2.descriptors:
+                    for d1 in noun1.descriptors:
+                        for d2 in noun2.descriptors:
+                            if d1.main_obj in self.find_synonyms(d2.main_obj):
+                                synonymity_score += 1
+        
+        for verb1 in long_verb_list:
+            for verb2 in verb_sent2_list:
+                if verb1.main_obj in self.find_synonyms(verb2.main_obj):
+                    synonymity_score += 1
+
+        return synonymity_score
 
     def read_data(self, index):
         bad_nodes = 0
@@ -425,11 +507,14 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
 
                     # verb_tags = {"VB": 1, "VBD": 1, "VBG": 1, "VBN": 1, "VBP": 1, "VBZ": 1}
                     feature_vector[9] = self.calculate_similarity_code(feature_vector[5], feature_vector[6])
-                    print(feature_vector[9])
-
+                    # print(feature_vector[9])
+#                   
+                    feature_vector[10] = self.calculate_antonymy_score(feature_vector[5], feature_vector[6])
+                    
+                    feature_vector[11] = self.calculate_synonymity_score(feature_vector[5], feature_vector[6])
+                    print(feature_vector[11])
                     # synonyms and antonyms of the sentence 1
 #                    feature_vector[9] = self.find_synonyms(feature_vector[1])
-#                    feature_vector[10] = self.find_antonyms(feature_vector[1])
 
                     # synonyms and antonyms for the second sentence
 
