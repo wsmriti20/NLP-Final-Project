@@ -502,7 +502,7 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
             actual_features_list_of_lists = []
             for line in data_file:
                 row_line = []
-                if (i < 150000):                                               # Line Limiter
+                if (i < 100000):                                               # Line Limiter
                     feature_vector = [None] * 19                                  # Create Feature Vector
                     data_line = json.loads(line)
                     feature_vector[0] = data_line["gold_label"]  # Extract Gold Label
@@ -541,11 +541,12 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                     row_line.append(self.unigram_cross_count(feature_vector[13], feature_vector[15]))
                     row_line.append(self.bigram_cross_count(feature_vector[14], feature_vector[16]))
                     row_line.append(self.ascii_diff(feature_vector[1], feature_vector[2]))
+                    row_line.append(abs(feature_vector[7]-feature_vector[8]))
                         # print(row_line)
                     
                     actual_features_list_of_lists.append(row_line)
                     
-                    if(i == 150000):
+                    if(i == 100000):
                         # print("bad_nodes: " + str(bad_nodes))
                         actual_features_list_of_lists.append(row_line)
                         return 0
@@ -553,15 +554,15 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
                 i += 1  # Line Limiter Increment
         return actual_features_list_of_lists
 
-
-
 # entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
 entailment_system_instance = Entailment_System("snli_1.0_train.jsonl", "snli_1.0_dev.jsonl", "snli_1.0_test.jsonl")
 dft = entailment_system_instance.read_data(0)
 x_train =  DataFrame(dft, \
     columns=["Labels", "Len of Sent1", "Len of Sent2", \
-        "Similarity Score", "Antonym Score", "Synonym Score", \
-        "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff"])
+        "Similarity Score", \
+        "Antonym Score", \
+        "Synonym Score", \
+        "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff", "Len Diff"])
 
 
 y_train = x_train.Labels
@@ -570,8 +571,10 @@ x_train = x_train.drop(["Labels"], axis = 1)
 # print(y_train)
 x_test =  DataFrame(entailment_system_instance.read_data(2), \
     columns=["Labels", "Len of Sent1", "Len of Sent2", \
-            "Similarity Score", "Antonym Score", "Synonym Score", \
-            "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff"])
+            "Similarity Score", \
+            "Antonym Score", \
+            "Synonym Score", \
+            "Unigram Cross Cnt", "Bigram Cross Cnt", "Ascii Diff", "Len Diff"])
 y_test = x_test.Labels
 x_test = x_test.drop(["Labels"], axis = 1)
 
