@@ -510,7 +510,6 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
             return rv
 
         dfx = dfx.apply(unpack)
-        # print(dfx['gold_label'][0]) 
         return dfx
     
     def processing_data(self, df):
@@ -523,37 +522,31 @@ class Entailment_System:  # Index: 0 for training, 1 for development, 2 for test
         df["Len of Sent1"] = df.apply(lambda x: len(x["sentence1"].split(" ")), axis = 1)
         df["Len of Sent2"] = df.apply(lambda x: len(x["sentence2"].split(" ")), axis = 1)
 
-        # processing other columns
         df["sentence1_binary_parse"] = df.apply(lambda x: self.extract_parse_tree(x["sentence1_binary_parse"], 0), axis = 1)
         df["sentence2_binary_parse"] = df.apply(lambda x: self.extract_parse_tree(x["sentence2_binary_parse"], 0), axis = 1)
         
         df["sentence1_parse"] = df.apply(lambda x: self.extract_parse_tree(x["sentence1_parse"], 1), axis = 1)
         df["sentence2_parse"] = df.apply(lambda x: self.extract_parse_tree(x["sentence2_parse"], 1), axis = 1)
-        # feature_vector[5] = self.extract_parse_tree(data_line["sentence1_parse"], 1)
-        # feature_vector[6] = self.extract_parse_tree(data_line["sentence2_parse"], 1)
-        
+
         df["Similarity Score"] = df.apply(lambda x: self.calculate_similarity_code(x["sentence1_parse"], x["sentence2_parse"]), axis = 1)
         df["Antonym Score"] = df.apply(lambda x: self.calculate_antonymy_score(x["sentence1_parse"], x["sentence2_parse"]), axis = 1)
         df["Synonym Score"] = df.apply(lambda x: self.calculate_synonymity_score(x["sentence1_parse"], x["sentence2_parse"]), axis = 1)
 
-        print(list(df.columns)) 
         df["Unigram Cross Cnt"] = df.apply(lambda x: self.unigram_cross_count(self.get_unigrams(x["sentence1"]), self.get_unigrams(x["sentence2"])), axis = 1)
         df["Bigram Cross Cnt"] = df.apply(lambda x: self.bigram_cross_count(self.get_bigrams(x["sentence1"]), self.get_bigrams(x["sentence2"])), axis = 1)
         df["Ascii Diff"] = df.apply(lambda x: self.ascii_diff(x["sentence1"], x["sentence2"]), axis = 1)
         
         df["Len Diff"] = df.apply(lambda x: abs(x['Len of Sent1']-x['Len of Sent2']), axis=1)
         
-        print(df.head(5))
         return df
 
-# entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
+entailment_system_instance = Entailment_System(sys.argv[1], sys.argv[2], sys.argv[3])
 
-entailment_system_instance = Entailment_System("snli_1.0_train.jsonl", "snli_1.0_dev.jsonl", "snli_1.0_test.jsonl")
-# df_train = entailment_system_instance.read_data(0)
-# x_train = entailment_system_instance.processing_data(df_train)
-# x_train = x_train.drop(["sentence1_binary_parse", "sentence2_binary_parse", "sentence1_parse", "sentence2_parse", "sentence1", "sentence2"], axis = 1)
-# y_train = x_train.gold_label
-# x_train = x_train.drop(["gold_label"], axis = 1)
+df_train = entailment_system_instance.read_data(0)
+x_train = entailment_system_instance.processing_data(df_train)
+x_train = x_train.drop(["sentence1_binary_parse", "sentence2_binary_parse", "sentence1_parse", "sentence2_parse", "sentence1", "sentence2"], axis = 1)
+y_train = x_train.gold_label
+x_train = x_train.drop(["gold_label"], axis = 1)
 
 df_test = entailment_system_instance.read_data(2)
 x_test = entailment_system_instance.processing_data(df_test)
@@ -561,10 +554,8 @@ x_test = x_test.drop(["sentence1_binary_parse", "sentence2_binary_parse", "sente
 y_test = x_test.gold_label
 x_test = x_test.drop(["gold_label"], axis = 1)
 
-print(x_test.shape)
+Clf = DecisionTreeClassifier(criterion = "entropy")
+Clf = Clf.fit(x_train, y_train)
+y_pred = Clf.predict(x_test)
 
-# Clf = DecisionTreeClassifier(criterion = "entropy")
-# Clf = Clf.fit(x_train, y_train)
-# y_pred = Clf.predict(x_test)
-
-# print(accuracy_score(y_test, y_pred)*100)
+print(accuracy_score(y_test, y_pred)*100)
